@@ -216,7 +216,110 @@ class _SettingsPageState extends State<SettingsPage>{
   Future<void> _openFolder()async{try{await Process.run('explorer.exe',[AppPaths.root.path]);}catch(e){_showMessage(context,_friendly(e),error:true);}}
   Future<void> _checkDb()async{try{await MadrasaDatabase.checkIntegrity();final tables=await MadrasaDatabase.instance.rawQuery("SELECT name FROM sqlite_master WHERE type='table'");_showMessage(context,'Database ঠিক আছে · ${tables.length}টি table পাওয়া গেছে।');}catch(e){_showMessage(context,_friendly(e),error:true);}}
   Future<void> _showPrinters()async{try{final printers=await Printing.listPrinters();if(!mounted)return;await showDialog<void>(context:context,builder:(c)=>AlertDialog(title:const Text('Windows Printer'),content:SizedBox(width:460,child:printers.isEmpty?const Text('কোনো printer পাওয়া যায়নি। Windows Settings-এ printer যোগ করুন।'):ListView(shrinkWrap:true,children:printers.map((x)=>ListTile(leading:const Icon(Icons.print_outlined),title:Text(x.name),subtitle:Text(x.isDefault?'Default printer':''),onTap:(){_printer=x.name;Navigator.pop(c);})).toList())),actions:[TextButton(onPressed:()=>Navigator.pop(c),child:const Text('বন্ধ করুন'))]));if(_printer.isNotEmpty)_showMessage(context,'$_printer নির্বাচন করা হয়েছে। Print dialog-এ printer নিশ্চিত করুন।');}catch(e){_showMessage(context,'Printer list পাওয়া যায়নি: ${_friendly(e)}',error:true);}}
-  @override Widget build(BuildContext context)=>ListView(padding:const EdgeInsets.all(24),children:[Text('মাদরাসার তথ্য',style:Theme.of(context).textTheme.titleLarge?.copyWith(fontWeight:FontWeight.w700)),const SizedBox(height:12),Card(child:Padding(padding:const EdgeInsets.all(20),child:Form(key:_form,child:Wrap(spacing:14,runSpacing:4,children:[..._fields.entries.where((x)=>x.key!='logo_path').map((e)=>SizedBox(width:390,child:TextFormField(controller:e.value,decoration:InputDecoration(labelText:_settingLabel(e.key)),validator:(v)=>e.key=='school_name'&&(v==null||v.trim().isEmpty)?'মাদরাসার নাম লিখুন।':null))),SizedBox(width:390,child:Column(crossAxisAlignment:CrossAxisAlignment.start,children:[const Text('মাদরাসার লোগো'),const SizedBox(height:6),Wrap(spacing:9,children:[OutlinedButton.icon(onPressed:_pickLogo,icon:const Icon(Icons.image_outlined),label:const Text('Logo নির্বাচন করুন')),if(_fields['logo_path']!.text.isNotEmpty)Text(p.basename(_fields['logo_path']!.text))])])),SizedBox(width:double.infinity,child:Align(alignment:Alignment.centerLeft,child:FilledButton.icon(onPressed:_saving?null:_save,icon:const Icon(Icons.save_outlined),label:const Text('তথ্য সংরক্ষণ')))])))),const SizedBox(height:16),Text('Data Location',style:Theme.of(context).textTheme.titleLarge?.copyWith(fontWeight:FontWeight.w700)),const SizedBox(height:10),Card(child:Padding(padding:const EdgeInsets.all(18),child:Column(crossAxisAlignment:CrossAxisAlignment.start,children:[Text(_storage),const SizedBox(height:13),Wrap(spacing:8,runSpacing:8,children:[OutlinedButton.icon(onPressed:_changeFolder,icon:const Icon(Icons.drive_file_move_outline),label:const Text('Change Data Folder')),OutlinedButton.icon(onPressed:_openFolder,icon:const Icon(Icons.folder_open),label:const Text('Open Data Folder')),OutlinedButton.icon(onPressed:_checkDb,icon:const Icon(Icons.fact_check_outlined),label:const Text('Check Database')),OutlinedButton.icon(onPressed:_loadStorage,icon:const Icon(Icons.storage_outlined),label:const Text('Storage Information'))])])),const SizedBox(height:16),Text('Printer',style:Theme.of(context).textTheme.titleLarge?.copyWith(fontWeight:FontWeight.w700)),Card(child:ListTile(leading:const Icon(Icons.print_outlined),title:Text(_printer.isEmpty?'Windows-এর local printer':'$_printer'),subtitle:const Text('PDF ও রসিদ print করলে Windows-এর printer dialog খুলবে।'),trailing:OutlinedButton(onPressed:_showPrinters,child:const Text('Printer দেখুন')))),const SizedBox(height:18),const _InfoBanner(text:'Application folder থেকে Database, ছবি ও নথি আলাদা Data Folder-এ থাকে। App update বা reinstall করলে নির্বাচিত Data Folder আলাদা থাকবে।')]);
+  @override
+  Widget build(BuildContext context) {
+    return ListView(
+      padding: const EdgeInsets.all(24),
+      children: [
+        Text('মাদরাসার তথ্য', style: Theme.of(context).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.w700)),
+        const SizedBox(height: 12),
+        Card(
+          child: Padding(
+            padding: const EdgeInsets.all(20),
+            child: Form(
+              key: _form,
+              child: Wrap(
+                spacing: 14,
+                runSpacing: 4,
+                children: [
+                  ..._fields.entries.where((e) => e.key != 'logo_path').map((e) => SizedBox(
+                    width: 390,
+                    child: TextFormField(
+                      controller: e.value,
+                      decoration: InputDecoration(labelText: _settingLabel(e.key)),
+                      validator: (value) => e.key == 'school_name' && (value == null || value.trim().isEmpty)
+                          ? 'মাদরাসার নাম লিখুন।'
+                          : null,
+                    ),
+                  )),
+                  SizedBox(
+                    width: 390,
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        const Text('মাদরাসার লোগো'),
+                        const SizedBox(height: 6),
+                        Wrap(
+                          spacing: 9,
+                          children: [
+                            OutlinedButton.icon(
+                              onPressed: _pickLogo,
+                              icon: const Icon(Icons.image_outlined),
+                              label: const Text('Logo নির্বাচন করুন'),
+                            ),
+                            if (_fields['logo_path']!.text.isNotEmpty)
+                              Text(p.basename(_fields['logo_path']!.text)),
+                          ],
+                        ),
+                      ],
+                    ),
+                  ),
+                  SizedBox(
+                    width: double.infinity,
+                    child: Align(
+                      alignment: Alignment.centerLeft,
+                      child: FilledButton.icon(
+                        onPressed: _saving ? null : _save,
+                        icon: const Icon(Icons.save_outlined),
+                        label: const Text('তথ্য সংরক্ষণ'),
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ),
+        const SizedBox(height: 16),
+        Text('Data Location', style: Theme.of(context).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.w700)),
+        const SizedBox(height: 10),
+        Card(
+          child: Padding(
+            padding: const EdgeInsets.all(18),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(_storage),
+                const SizedBox(height: 13),
+                Wrap(
+                  spacing: 8,
+                  runSpacing: 8,
+                  children: [
+                    OutlinedButton.icon(onPressed: _changeFolder, icon: const Icon(Icons.drive_file_move_outline), label: const Text('Change Data Folder')),
+                    OutlinedButton.icon(onPressed: _openFolder, icon: const Icon(Icons.folder_open), label: const Text('Open Data Folder')),
+                    OutlinedButton.icon(onPressed: _checkDb, icon: const Icon(Icons.fact_check_outlined), label: const Text('Check Database')),
+                    OutlinedButton.icon(onPressed: _loadStorage, icon: const Icon(Icons.storage_outlined), label: const Text('Storage Information')),
+                  ],
+                ),
+              ],
+            ),
+          ),
+        ),
+        const SizedBox(height: 16),
+        Text('Printer', style: Theme.of(context).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.w700)),
+        Card(
+          child: ListTile(
+            leading: const Icon(Icons.print_outlined),
+            title: Text(_printer.isEmpty ? 'Windows-এর local printer' : _printer),
+            subtitle: const Text('PDF ও রসিদ print করলে Windows-এর printer dialog খুলবে।'),
+            trailing: OutlinedButton(onPressed: _showPrinters, child: const Text('Printer দেখুন')),
+          ),
+        ),
+        const SizedBox(height: 18),
+        const _InfoBanner(text: 'Application folder থেকে Database, ছবি ও নথি আলাদা Data Folder-এ থাকে। App update বা reinstall করলে নির্বাচিত Data Folder আলাদা থাকবে।'),
+      ],
+    );
+  }
   String _settingLabel(String key)=>switch(key){'school_name'=>'মাদরাসার নাম','school_address'=>'ঠিকানা','school_phone'=>'ফোন','school_email'=>'ইমেইল','head_name'=>'প্রধানের নাম','academic_year'=>'শিক্ষাবর্ষ',_=>key};
 }
 
@@ -240,7 +343,6 @@ class _ReportsPageState extends State<ReportsPage>{String _module='fees';DateTim
   Future<void> _print()async{try{final m=madrasaModules.firstWhere((x)=>x.key==_module);final labels=<String>[];for(final c in m.columns){final matching=m.fields.where((f)=>f.key==c);labels.add(matching.isEmpty?c:matching.first.label);}await MadrasaPrint.table('রিপোর্ট · ${m.title}',labels,_rows.map((r)=>m.columns.map((c)=>r[c]?.toString()??'—').toList()).toList(),await widget.repository.settings());}catch(e){_showMessage(context,_friendly(e),error:true);}}
   @override Widget build(BuildContext context)=>ListView(padding:const EdgeInsets.all(24),children:[Text('রিপোর্ট',style:Theme.of(context).textTheme.headlineSmall?.copyWith(fontWeight:FontWeight.w700)),const SizedBox(height:12),Card(child:Padding(padding:const EdgeInsets.all(16),child:Wrap(spacing:11,runSpacing:8,crossAxisAlignment:WrapCrossAlignment.center,children:[SizedBox(width:250,child:DropdownButtonFormField<String>(initialValue:_module,decoration:const InputDecoration(labelText:'রিপোর্টের ধরন'),items:_reportable.map((m)=>DropdownMenuItem(value:m.key,child:Text(m.title))).toList(),onChanged:(v)=>setState(()=>_module=v??'fees'))),OutlinedButton.icon(onPressed:()=>_date(true),icon:const Icon(Icons.date_range),label:Text(_from==null?'শুরু তারিখ':_from!.toIso8601String().substring(0,10))),OutlinedButton.icon(onPressed:()=>_date(false),icon:const Icon(Icons.event),label:Text(_to==null?'শেষ তারিখ':_to!.toIso8601String().substring(0,10))),FilledButton.icon(onPressed:_build,icon:const Icon(Icons.search),label:const Text('রিপোর্ট দেখুন')),OutlinedButton.icon(onPressed:_exportCsv,icon:const Icon(Icons.table_view_outlined),label:const Text('CSV Export')),OutlinedButton.icon(onPressed:_print,icon:const Icon(Icons.print_outlined),label:const Text('Print'))]))),const SizedBox(height:12),if(_busy)const LinearProgressIndicator(),Card(child:Padding(padding:const EdgeInsets.all(15),child:Text('রেকর্ড: ${_rows.length}টি  ·  টাকার পরিমাণ ৳ ${_rows.fold<double>(0,(sum,r)=>sum+((r['amount']??r['paid']??0) as num).toDouble()).toStringAsFixed(2)}'))),if(_rows.isNotEmpty)SingleChildScrollView(scrollDirection:Axis.horizontal,child:DataTable(columns:madrasaModules.firstWhere((m)=>m.key==_module).columns.map((c)=>DataColumn(label:Text(c))).toList(),rows:_rows.take(300).map((r)=>DataRow(cells:madrasaModules.firstWhere((m)=>m.key==_module).columns.map((c)=>DataCell(Text(r[c]?.toString()??'—'))).toList())).toList()))else const Padding(padding:EdgeInsets.all(25),child:Text('Filter বেছে “রিপোর্ট দেখুন” চাপুন।'))]);}
 
-String _settingLabelUnused(String key)=>key;
 
 
 class DesktopShell extends StatefulWidget {
@@ -253,10 +355,131 @@ class _DesktopShellState extends State<DesktopShell>{String _page='dashboard';Ma
   Future<void> _loadSettings()async{try{final v=await widget.repository.settings();if(mounted)setState(()=>_settings=v);}catch(_){}}
   void _go(String id){setState(()=>_page=id);}
   Widget _logo(){final path=_settings['logo_path'];if(path==null||path.isEmpty)return const Icon(Icons.school,color:Colors.white);final file=File(p.isAbsolute(path)?path:p.join(AppPaths.root.path,path));return Image.file(file,fit:BoxFit.cover,errorBuilder:(_,__,___)=>const Icon(Icons.school,color:Colors.white));}
-  @override Widget build(BuildContext context){final width=MediaQuery.sizeOf(context).width;return Scaffold(body:Row(children:[
-    Container(width:width<900?218:252,color:Colors.white,child:Column(children:[Padding(padding:const EdgeInsets.fromLTRB(17,24,14,18),child:Row(children:[Container(width:43,height:43,clipBehavior:Clip.antiAlias,decoration:BoxDecoration(color:_green,borderRadius:BorderRadius.circular(12)),child:_logo()),const SizedBox(width:11),Expanded(child:Column(crossAxisAlignment:CrossAxisAlignment.start,children:[Text(_settings['school_name']??'Sreerampur Madrasah',maxLines:2,overflow:TextOverflow.ellipsis,style:const TextStyle(fontWeight:FontWeight.w700,fontSize:14)),const Text('ম্যানেজমেন্ট সফটওয়্যার',style:TextStyle(fontSize:11,color:Colors.black54))]))])),const Divider(height:1),Expanded(child:ListView(padding:const EdgeInsets.fromLTRB(10,12,10,12),children:_modulesByGroup.entries.expand((group)=>[Padding(padding:const EdgeInsets.fromLTRB(12,16,8,6),child:Text(group.key,style:const TextStyle(fontSize:11,fontWeight:FontWeight.w700,color:Colors.black54))),...group.value.map((id){final selected=_page==id;return Padding(padding:const EdgeInsets.symmetric(vertical:2),child:ListTile(dense:true,selected:selected,selectedColor:_green,selectedTileColor:const Color(0xFFE8F3ED),shape:RoundedRectangleBorder(borderRadius:BorderRadius.circular(9)),leading:Icon(_iconFor(id),size:19),title:Text(titleOf(id),style:const TextStyle(fontSize:13)),onTap:()=>_go(id)));})]).toList())),const Divider(height:1),Padding(padding:const EdgeInsets.all(10),child:Row(children:[Expanded(child:Text(AppPaths.dataRoot??'',maxLines:1,overflow:TextOverflow.ellipsis,style:const TextStyle(fontSize:10,color:Colors.black54))),IconButton(tooltip:'লগ আউট',onPressed:widget.onLogout,icon:const Icon(Icons.logout,size:19))]))])),
-    Expanded(child:Column(children:[Container(height:70,color:Colors.white,padding:const EdgeInsets.symmetric(horizontal:26),child:Row(children:[Expanded(child:Column(mainAxisAlignment:MainAxisAlignment.center,crossAxisAlignment:CrossAxisAlignment.start,children:[Text(titleOf(_page),style:Theme.of(context).textTheme.titleLarge?.copyWith(fontWeight:FontWeight.w700)),Text(_settings['school_address']??'Offline · local SQLite',maxLines:1,overflow:TextOverflow.ellipsis,style:Theme.of(context).textTheme.bodySmall?.copyWith(color:Colors.black54))])),IconButton(tooltip:'সেটিংস',onPressed:()=>_go('settings'),icon:const Icon(Icons.settings_outlined)),const SizedBox(width:8),CircleAvatar(backgroundColor:const Color(0xFFE8F3ED),foregroundColor:_green,child:const Icon(Icons.person_outline))])),const Divider(height:1),Expanded(child:AnimatedSwitcher(duration:const Duration(milliseconds:160),child:_page=='dashboard'?DashboardPage(key:const ValueKey('dashboard'),repository:widget.repository,onNavigate:_go):_page=='settings'?SettingsPage(key:const ValueKey('settings'),repository:widget.repository,settings:_settings,onChanged:_loadSettings):_page=='backup'?BackupPage(key:const ValueKey('backup'),repository:widget.repository):_page=='reports'?ReportsPage(key:const ValueKey('reports'),repository:widget.repository):_page=='cloud_sync'?CloudSyncPage(key:const ValueKey('cloud_sync'),repository:widget.repository):RecordListPage(key:ValueKey(_page),module:madrasaModules.firstWhere((m)=>m.key==_page),repository:widget.repository))))]))
-  ]));}
+  @override
+  Widget build(BuildContext context) {
+    final width = MediaQuery.sizeOf(context).width;
+    return Scaffold(
+      body: Row(
+        children: [
+          Container(
+            width: width < 900 ? 218 : 252,
+            color: Colors.white,
+            child: Column(
+              children: [
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(17, 24, 14, 18),
+                  child: Row(
+                    children: [
+                      Container(
+                        width: 43,
+                        height: 43,
+                        clipBehavior: Clip.antiAlias,
+                        decoration: BoxDecoration(color: _green, borderRadius: BorderRadius.circular(12)),
+                        child: _logo(),
+                      ),
+                      const SizedBox(width: 11),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(_settings['school_name'] ?? 'Sreerampur Madrasah', maxLines: 2, overflow: TextOverflow.ellipsis, style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 14)),
+                            const Text('ম্যানেজমেন্ট সফটওয়্যার', style: TextStyle(fontSize: 11, color: Colors.black54)),
+                          ],
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                const Divider(height: 1),
+                Expanded(
+                  child: ListView(
+                    padding: const EdgeInsets.fromLTRB(10, 12, 10, 12),
+                    children: _modulesByGroup.entries.expand((group) => [
+                      Padding(
+                        padding: const EdgeInsets.fromLTRB(12, 16, 8, 6),
+                        child: Text(group.key, style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w700, color: Colors.black54)),
+                      ),
+                      ...group.value.map((id) {
+                        final selected = _page == id;
+                        return Padding(
+                          padding: const EdgeInsets.symmetric(vertical: 2),
+                          child: ListTile(
+                            dense: true,
+                            selected: selected,
+                            selectedColor: _green,
+                            selectedTileColor: const Color(0xFFE8F3ED),
+                            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(9)),
+                            leading: Icon(_iconFor(id), size: 19),
+                            title: Text(titleOf(id), style: const TextStyle(fontSize: 13)),
+                            onTap: () => _go(id),
+                          ),
+                        );
+                      }),
+                    ]).toList(),
+                  ),
+                ),
+                const Divider(height: 1),
+                Padding(
+                  padding: const EdgeInsets.all(10),
+                  child: Row(
+                    children: [
+                      Expanded(child: Text(AppPaths.dataRoot ?? '', maxLines: 1, overflow: TextOverflow.ellipsis, style: const TextStyle(fontSize: 10, color: Colors.black54))),
+                      IconButton(tooltip: 'লগ আউট', onPressed: widget.onLogout, icon: const Icon(Icons.logout, size: 19)),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+          ),
+          Expanded(
+            child: Column(
+              children: [
+                Container(
+                  height: 70,
+                  color: Colors.white,
+                  padding: const EdgeInsets.symmetric(horizontal: 26),
+                  child: Row(
+                    children: [
+                      Expanded(
+                        child: Column(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(titleOf(_page), style: Theme.of(context).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.w700)),
+                            Text(_settings['school_address'] ?? 'Offline · local SQLite', maxLines: 1, overflow: TextOverflow.ellipsis, style: Theme.of(context).textTheme.bodySmall?.copyWith(color: Colors.black54)),
+                          ],
+                        ),
+                      ),
+                      IconButton(tooltip: 'সেটিংস', onPressed: () => _go('settings'), icon: const Icon(Icons.settings_outlined)),
+                      const SizedBox(width: 8),
+                      const CircleAvatar(backgroundColor: Color(0xFFE8F3ED), foregroundColor: _green, child: Icon(Icons.person_outline)),
+                    ],
+                  ),
+                ),
+                const Divider(height: 1),
+                Expanded(
+                  child: AnimatedSwitcher(
+                    duration: const Duration(milliseconds: 160),
+                    child: _page == 'dashboard'
+                        ? DashboardPage(key: const ValueKey('dashboard'), repository: widget.repository, onNavigate: _go)
+                        : _page == 'settings'
+                            ? SettingsPage(key: const ValueKey('settings'), repository: widget.repository, settings: _settings, onChanged: _loadSettings)
+                            : _page == 'backup'
+                                ? BackupPage(key: const ValueKey('backup'), repository: widget.repository)
+                                : _page == 'reports'
+                                    ? ReportsPage(key: const ValueKey('reports'), repository: widget.repository)
+                                    : _page == 'cloud_sync'
+                                        ? CloudSyncPage(key: const ValueKey('cloud_sync'), repository: widget.repository)
+                                        : RecordListPage(key: ValueKey(_page), module: madrasaModules.firstWhere((m) => m.key == _page), repository: widget.repository),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
 }
 
 IconData _iconFor(String key)=>switch(key){'dashboard'=>Icons.dashboard_outlined,'students'=>Icons.groups_outlined,'teachers'=>Icons.cast_for_education_outlined,'staff'=>Icons.badge_outlined,'classes'=>Icons.class_outlined,'subjects'=>Icons.menu_book_outlined,'attendance'||'teacher_attendance'||'staff_attendance'=>Icons.fact_check_outlined,'exams'||'marks'=>Icons.school_outlined,'fees'||'income'||'accounts'=>Icons.account_balance_wallet_outlined,'expenses'=>Icons.money_off_csred_outlined,'homework'=>Icons.edit_note,'notices'=>Icons.campaign_outlined,'books'||'library_transactions'=>Icons.local_library_outlined,'reports'=>Icons.bar_chart_outlined,'settings'=>Icons.settings_outlined,'backup'=>Icons.backup_outlined,'cloud_sync'=>Icons.cloud_sync_outlined,_=>Icons.circle_outlined};

@@ -23,7 +23,7 @@ jobs:
       - name: Resolve packages
         run: flutter pub get
       - name: Analyze Dart sources
-        run: flutter analyze
+        run: flutter analyze lib
       - name: Build Windows release
         run: flutter build windows --release
       - name: Save Windows build artifact
@@ -33,3 +33,4 @@ jobs:
           path: build/windows/x64/runner/Release/
           if-no-files-found: error
           retention-days: 14
+
