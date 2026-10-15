@@ -112,7 +112,7 @@ class _DataFolderScreen extends StatelessWidget {
   ]))))));
 }
 
-class _FolderStructure extends StatelessWidget {const _FolderStructure();@override Widget build(BuildContext context)=>Container(width:double.infinity,padding:const EdgeInsets.all(15),decoration:BoxDecoration(color:const Color(0xFFF1F6F3),borderRadius:BorderRadius.circular(10)),child:const Text('নির্বাচিত folder-এ স্বয়ংক্রিয়ভাবে থাকবে:\nData Folder/\n  database/madrasa.db\n  photos/  documents/  backups/\n  reports/  exports/')));}
+class _FolderStructure extends StatelessWidget {const _FolderStructure();@override Widget build(BuildContext context)=>Container(width:double.infinity,padding:const EdgeInsets.all(15),decoration:BoxDecoration(color:const Color(0xFFF1F6F3),borderRadius:BorderRadius.circular(10)),child:const Text('নির্বাচিত folder-এ স্বয়ংক্রিয়ভাবে থাকবে:\nData Folder/\n  database/madrasa.db\n  photos/  documents/  backups/\n  reports/  exports/'));}
 
 class _CredentialsScreen extends StatefulWidget {
   const _CredentialsScreen({required this.create,required this.onSubmit,required this.onBack});
@@ -164,8 +164,91 @@ class _RecordListPageState extends State<RecordListPage>{
   Future<void> _edit([Map<String,Object?>? row])async{final result=await showDialog<Map<String,Object?>>(context:context,builder:(_)=>RecordEditor(module:widget.module,repository:widget.repository,record:row));if(result==null)return;try{await widget.repository.save(widget.module,result,id:row?['id']?.toString());_showMessage(context,row==null?'তথ্য সংরক্ষণ হয়েছে।':'পরিবর্তন সংরক্ষণ হয়েছে।');await _load();}catch(e){_showMessage(context,_friendly(e),error:true);}}
   Future<void> _delete(Map<String,Object?> row)async{final ok=await showDialog<bool>(context:context,builder:(c)=>AlertDialog(title:const Text('রেকর্ড মুছবেন?'),content:Text('“${_display(row,widget.module.columns.first)}” স্থায়ীভাবে মুছে যাবে।'),actions:[TextButton(onPressed:()=>Navigator.pop(c,false),child:const Text('বাতিল')),FilledButton(onPressed:()=>Navigator.pop(c,true),child:const Text('মুছুন'))]));if(ok!=true)return;try{await widget.repository.delete(widget.module,row['id'].toString());_showMessage(context,'রেকর্ড মুছে ফেলা হয়েছে।');await _load();}catch(e){_showMessage(context,_friendly(e),error:true);}}
   String _display(Map<String,Object?> row,String col){if(col=='due'&&widget.module.table=='fees')return _money(((row['total'] as num?)??0)-((row['discount'] as num?)??0)-((row['paid'] as num?)??0));final value=row[col];if(value==null)return '—';for(final field in widget.module.fields){if(field.key==col&&_labels.containsKey(field.type))return _labels[field.type]![value.toString()]??value.toString();}if(value is num&&widget.module.fields.any((f)=>f.key==col&&f.type=='number'))return _money(value);return value.toString();}
-  @override Widget build(BuildContext context)=>Column(children:[Padding(padding:const EdgeInsets.fromLTRB(24,22,24,12),child:Row(children:[Expanded(child:Text(widget.module.title,style:Theme.of(context).textTheme.headlineSmall?.copyWith(fontWeight:FontWeight.w700))),if(widget.module.table=='attendance')OutlinedButton.icon(onPressed:_markClassPresent,icon:const Icon(Icons.done_all),label:const Text('শ্রেণির সবাই হাজির')),const SizedBox(width:9),OutlinedButton.icon(onPressed:()=>_printModule(),icon:const Icon(Icons.print_outlined),label:const Text('প্রিন্ট')),const SizedBox(width:9),FilledButton.icon(onPressed:()=>_edit(),icon:const Icon(Icons.add),label:Text(widget.module.key=='students'?'ভর্তি / যোগ করুন':'নতুন যোগ করুন'))])),Padding(padding:const EdgeInsets.fromLTRB(24,0,24,12),child(Row(children:[SizedBox(width:360,child:TextField(controller:_search,onChanged:_searchChanged,decoration:const InputDecoration(prefixIcon:Icon(Icons.search),hintText:'নাম, আইডি বা তথ্য খুঁজুন',isDense:true))),const Spacer(),Text('মোট ${_total.toString()}টি রেকর্ড  ·  প্রতি পৃষ্ঠায় $_pageSizeটি',style:const TextStyle(color:Colors.black54))]))),Expanded(child:FutureBuilder<List<Map<String,Object?>>>(future:_rows,builder:(context,snapshot){if(snapshot.hasError)return _ErrorPanel(message:_friendly(snapshot.error!),onRetry:_load);if(!snapshot.hasData)return const Center(child:CircularProgressIndicator());final rows=snapshot.data!;final hasPhoto={'students','teachers','staff'}.contains(widget.module.table);final cols=[...(hasPhoto?['photo_path']:[]),...widget.module.columns,...(widget.module.table=='fees'?['due']:[])];return Padding(padding:const EdgeInsets.symmetric(horizontal:24),child:Card(child:Column(children:[Expanded(child:rows.isEmpty?const Center(child:Text('কোনো তথ্য পাওয়া যায়নি। নতুন রেকর্ড যোগ করুন।')):Scrollbar(child:SingleChildScrollView(scrollDirection:Axis.horizontal,child:SingleChildScrollView(child:DataTable(columnSpacing:23,headingRowHeight:46,dataRowMinHeight:47,dataRowMaxHeight:64,columns:[...cols.map((c)=>DataColumn(label:Text(_columnLabel(c),style:const TextStyle(fontWeight:FontWeight.w700)))),const DataColumn(label:Text('কাজ',style:TextStyle(fontWeight:FontWeight.w700)))],rows:rows.map((row)=>DataRow(cells:[...cols.map((c)=>DataCell(c=='photo_path'?_photoCell(row[c]):ConstrainedBox(constraints:const BoxConstraints(maxWidth:190),child:Text(_display(row,c),maxLines:2,overflow:TextOverflow.ellipsis)))),DataCell(Row(mainAxisSize:MainAxisSize.min,children:[IconButton(tooltip:'সম্পাদনা',onPressed:()=>_edit(row),icon:const Icon(Icons.edit_outlined,size:18)),if(widget.module.table=='students')IconButton(tooltip:'শিক্ষার্থী profile/ID print',onPressed:()=>_printStudent(row),icon:const Icon(Icons.badge_outlined,size:18)),if(widget.module.table=='fees')IconButton(tooltip:'ফি রসিদ প্রিন্ট',onPressed:()=>_printReceipt(row),icon:const Icon(Icons.receipt_long_outlined,size:18)),IconButton(tooltip:'মুছুন',onPressed:()=>_delete(row),icon:const Icon(Icons.delete_outline,color:Colors.red,size:19))]))])).toList()))),const Divider(height:1),Padding(padding:const EdgeInsets.symmetric(horizontal:14,vertical:7),child:Row(mainAxisAlignment:MainAxisAlignment.end,children:[TextButton.icon(onPressed:_page>0?(){setState(()=>_page--);_load();}:null,icon:const Icon(Icons.chevron_left),label:const Text('আগের পৃষ্ঠা')),Text('পৃষ্ঠা ${_page+1} / ${(_total/_pageSize).ceil().clamp(1,99999)}'),TextButton.icon(onPressed:(_page+1)*_pageSize<_total?(){setState(()=>_page++);_load();}:null,icon:const Icon(Icons.chevron_right),label:const Text('পরের পৃষ্ঠা'))]))])));})),if(_busy)const LinearProgressIndicator(minHeight:2)]);
-  Widget _photoCell(Object? value){if(value==null||value.toString().isEmpty)return const SizedBox(width:38,height:38,child:CircleAvatar(child:Icon(Icons.person_outline,size:18)));final stored=value.toString();final file=File(p.isAbsolute(stored)?stored:p.join(AppPaths.root.path,stored));return ClipOval(child:SizedBox(width:38,height:38,child:Image.file(file,fit:BoxFit.cover,errorBuilder:(_,__,___)=>const CircleAvatar(child:Icon(Icons.person_outline,size:18)))));}
+  @override
+  Widget build(BuildContext context) {
+    return Column(children: [
+      Padding(
+        padding: const EdgeInsets.fromLTRB(24, 22, 24, 12),
+        child: Row(children: [
+          Expanded(child: Text(widget.module.title, style: Theme.of(context).textTheme.headlineSmall?.copyWith(fontWeight: FontWeight.w700))),
+          if (widget.module.table == 'attendance') OutlinedButton.icon(onPressed: _markClassPresent, icon: const Icon(Icons.done_all), label: const Text('শ্রেণির সবাই হাজির')),
+          const SizedBox(width: 9),
+          OutlinedButton.icon(onPressed: _printModule, icon: const Icon(Icons.print_outlined), label: const Text('প্রিন্ট')),
+          const SizedBox(width: 9),
+          FilledButton.icon(onPressed: _edit, icon: const Icon(Icons.add), label: Text(widget.module.key == 'students' ? 'ভর্তি / যোগ করুন' : 'নতুন যোগ করুন')),
+        ]),
+      ),
+      Padding(
+        padding: const EdgeInsets.fromLTRB(24, 0, 24, 12),
+        child: Row(children: [
+          SizedBox(width: 360, child: TextField(controller: _search, onChanged: _searchChanged, decoration: const InputDecoration(prefixIcon: Icon(Icons.search), hintText: 'নাম, আইডি বা তথ্য খুঁজুন', isDense: true))),
+          const Spacer(),
+          Text('মোট ${_total}টি রেকর্ড  ·  প্রতি পৃষ্ঠায় $_pageSizeটি', style: const TextStyle(color: Colors.black54)),
+        ]),
+      ),
+      Expanded(
+        child: FutureBuilder<List<Map<String, Object?>>>(
+          future: _rows,
+          builder: (context, snapshot) {
+            if (snapshot.hasError) return _ErrorPanel(message: _friendly(snapshot.error!), onRetry: _load);
+            if (!snapshot.hasData) return const Center(child: CircularProgressIndicator());
+            final rows = snapshot.data!;
+            final hasPhoto = {'students', 'teachers', 'staff'}.contains(widget.module.table);
+            final cols = [...(hasPhoto ? ['photo_path'] : <String>[]), ...widget.module.columns, ...(widget.module.table == 'fees' ? ['due'] : <String>[])];
+            return Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 24),
+              child: Card(
+                child: Column(children: [
+                  Expanded(
+                    child: rows.isEmpty
+                        ? const Center(child: Text('কোনো তথ্য পাওয়া যায়নি। নতুন রেকর্ড যোগ করুন।'))
+                        : Scrollbar(
+                            child: SingleChildScrollView(
+                              scrollDirection: Axis.horizontal,
+                              child: SingleChildScrollView(
+                                child: DataTable(
+                                  columnSpacing: 23,
+                                  headingRowHeight: 46,
+                                  dataRowMinHeight: 47,
+                                  dataRowMaxHeight: 64,
+                                  columns: [
+                                    ...cols.map((c) => DataColumn(label: Text(_columnLabel(c), style: const TextStyle(fontWeight: FontWeight.w700)))),
+                                    const DataColumn(label: Text('কাজ', style: TextStyle(fontWeight: FontWeight.w700))),
+                                  ],
+                                  rows: rows.map((row) => DataRow(cells: [
+                                    ...cols.map((c) => DataCell(c == 'photo_path'
+                                        ? _photoCell(row[c])
+                                        : ConstrainedBox(constraints: const BoxConstraints(maxWidth: 190), child: Text(_display(row, c), maxLines: 2, overflow: TextOverflow.ellipsis)))),
+                                    DataCell(Row(mainAxisSize: MainAxisSize.min, children: [
+                                      IconButton(tooltip: 'সম্পাদনা', onPressed: () => _edit(row), icon: const Icon(Icons.edit_outlined, size: 18)),
+                                      if (widget.module.table == 'students') IconButton(tooltip: 'শিক্ষার্থী profile/ID print', onPressed: () => _printStudent(row), icon: const Icon(Icons.badge_outlined, size: 18)),
+                                      if (widget.module.table == 'fees') IconButton(tooltip: 'ফি রসিদ প্রিন্ট', onPressed: () => _printReceipt(row), icon: const Icon(Icons.receipt_long_outlined, size: 18)),
+                                      IconButton(tooltip: 'মুছুন', onPressed: () => _delete(row), icon: const Icon(Icons.delete_outline, color: Colors.red, size: 19)),
+                                    ])),
+                                  ])).toList(),
+                                ),
+                              ),
+                            ),
+                          ),
+                  ),
+                  const Divider(height: 1),
+                  Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 7),
+                    child: Row(mainAxisAlignment: MainAxisAlignment.end, children: [
+                      TextButton.icon(onPressed: _page > 0 ? () { setState(() => _page--); _load(); } : null, icon: const Icon(Icons.chevron_left), label: const Text('আগের পৃষ্ঠা')),
+                      Text('পৃষ্ঠা ${_page + 1} / ${(_total / _pageSize).ceil().clamp(1, 99999)}'),
+                      TextButton.icon(onPressed: (_page + 1) * _pageSize < _total ? () { setState(() => _page++); _load(); } : null, icon: const Icon(Icons.chevron_right), label: const Text('পরের পৃষ্ঠা')),
+                    ]),
+                  ),
+                ]),
+              ),
+            );
+          },
+        ),
+      ),
+      if (_busy) const LinearProgressIndicator(minHeight: 2),
+    ]);
+  }  Widget _photoCell(Object? value){if(value==null||value.toString().isEmpty)return const SizedBox(width:38,height:38,child:CircleAvatar(child:Icon(Icons.person_outline,size:18)));final stored=value.toString();final file=File(p.isAbsolute(stored)?stored:p.join(AppPaths.root.path,stored));return ClipOval(child:SizedBox(width:38,height:38,child:Image.file(file,fit:BoxFit.cover,errorBuilder:(_,__,___)=>const CircleAvatar(child:Icon(Icons.person_outline,size:18)))));}
   String _columnLabel(String key){for(final f in widget.module.fields){if(f.key==key)return f.label;}if(key=='due')return 'বকেয়া';return key;}
   Future<void> _markClassPresent()async{final classes=await MadrasaDatabase.instance.query('classes',orderBy:'sort_order');if(!mounted)return;if(classes.isEmpty)return _showMessage(context,'আগে শ্রেণি যোগ করুন।',error:true);final cls=await showDialog<String>(context:context,builder:(c)=>SimpleDialog(title:const Text('শ্রেণির সবাইকে উপস্থিত দিন'),children:classes.map((r)=>SimpleDialogOption(onPressed:()=>Navigator.pop(c,r['id'].toString()),child:Text(r['name'].toString()))).toList()));if(cls==null)return;try{final count=await widget.repository.markClassPresent(cls,DateTime.now().toIso8601String().substring(0,10));_showMessage(context,'$count জন শিক্ষার্থীর উপস্থিতি সংরক্ষিত হয়েছে।');await _load();}catch(e){_showMessage(context,_friendly(e),error:true);}}
   Future<void> _printModule()async{try{final rows=await widget.repository.list(widget.module,page:0,pageSize:1000);await MadrasaPrint.table(widget.module.title,widget.module.columns.map(_columnLabel).toList(),rows.map((r)=>widget.module.columns.map((c)=>_display(r,c)).toList()).toList(),await widget.repository.settings());}catch(e){_showMessage(context,_friendly(e),error:true);}}

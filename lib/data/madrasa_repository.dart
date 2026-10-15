@@ -10,11 +10,17 @@ import 'package:sqflite_common_ffi/sqflite_ffi.dart';
 import '../core/app_paths.dart';
 import 'madrasa_database.dart';
 
+int? _firstInt(List<Map<String, Object?>> rows) {
+  if (rows.isEmpty) return null;
+  final value = rows.first.values.first;
+  return value is num ? value.toInt() : int.tryParse(value.toString());
+}
+
 class MadrasaRepository {
   Database get _db => MadrasaDatabase.instance;
   final _passwordKdf = Pbkdf2(macAlgorithm: Hmac.sha256(), iterations: 180000, bits: 256);
 
-  Future<bool> hasLocalAccount() async => Sqflite.firstIntValue(await _db.rawQuery('SELECT COUNT(*) FROM local_users')) != 0;
+  Future<bool> hasLocalAccount() async => (_firstInt(await _db.rawQuery('SELECT COUNT(*) FROM local_users')) ?? 0) != 0;
 
   Future<void> createOwner(String username, String password) async {
     final name = username.trim();
@@ -56,9 +62,9 @@ class MadrasaRepository {
 
   Future<int> count(ModuleSpec module, {String search=''}) async {
     final terms=search.trim().toLowerCase();
-    if(terms.isEmpty)return Sqflite.firstIntValue(await _db.rawQuery('SELECT COUNT(*) FROM "${module.table}"'))??0;
+    if(terms.isEmpty)return _firstInt(await _db.rawQuery('SELECT COUNT(*) FROM "${module.table}"'))??0;
     final where=module.columns.map((c)=>'CAST("$c" AS TEXT) LIKE ?').join(' OR ');
-    return Sqflite.firstIntValue(await _db.rawQuery('SELECT COUNT(*) FROM "${module.table}" WHERE $where',List<Object?>.filled(module.columns.length,'%$terms%')))??0;
+    return _firstInt(await _db.rawQuery('SELECT COUNT(*) FROM "${module.table}" WHERE $where',List<Object?>.filled(module.columns.length,'%$terms%')))??0;
   }
 
   Future<void> save(ModuleSpec module, Map<String,Object?> record, {String? id}) async {
@@ -125,7 +131,7 @@ class MadrasaRepository {
 
   Future<int> tableCount(String table) async {
     if(!{'students','teachers','staff','classes','subjects','attendance','teacher_attendance','staff_attendance','exams','marks','fees','homework','notices','books','library_transactions','expenses','income','accounts'}.contains(table))throw ArgumentError('Invalid table.');
-    return Sqflite.firstIntValue(await _db.rawQuery('SELECT COUNT(*) FROM "$table"'))??0;
+    return _firstInt(await _db.rawQuery('SELECT COUNT(*) FROM "$table"'))??0;
   }
 
   Future<List<Map<String,Object?>>> allForBackup(String table) async {
