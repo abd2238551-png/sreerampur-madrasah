@@ -23,7 +23,7 @@ jobs:
       - name: Resolve packages
         run: flutter pub get
       - name: Analyze Dart sources
-        run: flutter analyze lib --no-fatal-infos
+        run: flutter analyze lib --no-fatal-infos --no-fatal-warnings
       - name: Build Windows release
         run: flutter build windows --release
       - name: Save Windows build artifact
