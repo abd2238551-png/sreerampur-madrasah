@@ -1,0 +1,27 @@
+# Flutter and Dart generated files
+.dart_tool/
+.flutter-plugins
+.flutter-plugins-dependencies
+.packages
+build/
+coverage/
+
+# Environment and local credentials
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+
+# Local databases and user data
+*.db
+*.sqlite
+*.sqlite3
+*.db-journal
+*.sqlite-journal
+
+# IDE and operating system files
+.idea/
+.vscode/
+.DS_Store
+Thumbs.db
