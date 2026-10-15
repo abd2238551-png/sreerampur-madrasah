@@ -1,6 +1,6 @@
 # Sreerampur Madrasah Management (Windows Desktop)
 
-Sreerampur Madrasah includes a browser app and an offline-first Windows desktop app. Both can synchronize records through the configured Appwrite TablesDB project. The browser version runs directly from this folder; the Windows version is Flutter source and needs a Windows runner/build before it can be distributed as an executable.
+Sreerampur Madrasah includes a browser app and an offline-first Windows desktop app. Both can synchronize records through the configured Appwrite TablesDB project. The browser version is published at [melodic-alpaca-1eff7e.netlify.app](https://melodic-alpaca-1eff7e.netlify.app/) on Netlify's free hostname; no custom domain is required. The Windows version is Flutter source, and a Windows release package is built by GitHub Actions.
 
 ## Desktop architecture
 
@@ -21,7 +21,7 @@ Dashboard; students; teachers; staff; classes; subjects; student/teacher/staff a
 
 ## Web app and deployment
 
-The web app is `index.html` with files under `css/`, `js/`, and `assets/`. It saves browser data locally and requires the user to press **Sync** to exchange data with Appwrite. To host it as a static site, publish the repository root (`.`) with no build command. Add the exact hosted domain under the Appwrite project's Web platform before using login and recovery links from that site.
+The web app is `index.html` with files under `css/`, `js/`, and `assets/`. It saves browser data locally and requires the user to press **Sync** to exchange data with Appwrite. To host it as a static site, publish the repository root (`.`) with no build command. The deployed Netlify hostname is registered as an Appwrite Web platform so login and account recovery work from the free site URL.
 
 New users can create an Appwrite email/password account from either app, then sign in with that same account on the other device. Account recovery sends a link by email. Each account can read or change its own rows only.
 
@@ -39,7 +39,7 @@ flutter run -d windows
 flutter build windows
 ```
 
-The Flutter-generated `windows/` runner is not checked in yet. Create it with `flutter create --platforms=windows .` after installing Flutter, then run the listed dependency, analysis, and build steps. This environment does not have Flutter/Dart available, so the Windows binary has not been built or runtime-verified here.
+The Flutter-generated `windows/` runner is not checked in; CI generates it, analyzes the Dart sources, builds the Windows release, and uploads the result as a 14-day artifact. Download the latest successful package from the [Windows desktop build workflow](https://github.com/abd2238551-png/sreerampur-madrasah/actions/workflows/windows-build.yml). The current CI build and analysis passed. Interactive Windows startup, local database setup, printer behavior, and a Windows-to-web Appwrite sync still need runtime verification on a Windows computer.
 
 ## Legacy data migration
 
@@ -50,4 +50,4 @@ In the old browser app, create/download its JSON backup first. In the desktop ap
 - The Flutter app remains usable offline. Supabase is no longer used; Appwrite is only for account login and manual cloud sync. Google Drive is not used by the Flutter app.
 - Keep backups on another drive or external storage as well as the app's `backups/` directory.
 - The local username/password only gates this app on this computer; it does not encrypt the whole Windows profile or database file.
-- Database and app startup, Windows packaging, printer behavior, Appwrite sync behavior, and end-to-end workflows still need actual Windows Flutter build/runtime verification.
+- Windows packaging and Dart analysis pass in CI. Windows startup, local database setup, printer behavior, and Windows-to-web Appwrite sync still need runtime verification.
