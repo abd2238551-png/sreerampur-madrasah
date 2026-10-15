@@ -103,11 +103,17 @@ class AppwriteCloudSync {
         value: picked.value, deleted: picked.deleted, rowId: cloud[conflict.key]?.rowId);
     }
 
+    final latestLocal = await _readLocal(repository);
+    if (local.length != latestLocal.length || local.entries.any((entry) =>
+        !_same({'deleted': entry.value.deleted, 'value': entry.value.deleted ? null : entry.value.value},
+          latestLocal[entry.key] == null ? null : {'deleted': latestLocal[entry.key]!.deleted,
+            'value': latestLocal[entry.key]!.deleted ? null : latestLocal[entry.key]!.value}))) {
+      throw StateError('Sync প্রস্তুত করার পর local data বদলেছে। কিছু লেখা হয়নি; আবার sync করুন।');
+    }
+
     final nextBaseline = <String, dynamic>{};
     var pushed = 0, pulled = 0;
-    await repository.applyCloudRecords(finalRows.values.map((record)=>{
-      'collection':record.collection,'id':record.id,'value':record.value,'deleted':record.deleted,
-    }).toList());
+    final cloudChanges = <MapEntry<String, _SyncRecord>>[];
     for (final entry in finalRows.entries) {
       final selected = entry.value;
       nextBaseline[entry.key] = {'collection': selected.collection, 'id': selected.id,
@@ -115,7 +121,7 @@ class AppwriteCloudSync {
       final remote = cloud[entry.key];
       if (remote == null || !_same({'deleted': remote.deleted, 'value': remote.deleted ? null : remote.value},
           {'deleted': selected.deleted, 'value': selected.deleted ? null : selected.value})) {
-        await _writeCloud(userId, selected, remote?.rowId);
+        cloudChanges.add(entry);
         pushed++;
       }
       final before = local[entry.key];
@@ -123,6 +129,10 @@ class AppwriteCloudSync {
           {'deleted': selected.deleted, 'value': selected.deleted ? null : selected.value})) pulled++;
     }
 
+    await _writeCloudBatches(userId, cloud, cloudChanges);
+    await repository.applyCloudRecords(finalRows.values.map((record)=>{
+      'collection':record.collection,'id':record.id,'value':record.value,'deleted':record.deleted,
+    }).toList());
     await repository.saveSettings({baselineKey: jsonEncode(nextBaseline)});
     return SyncReport(records: finalRows.length, pushed: pushed, pulled: pulled, conflictsResolved: choices.length);
   }
@@ -164,7 +174,7 @@ class AppwriteCloudSync {
           final extension = p.extension(path).toLowerCase();
           final mime = extension == '.png' ? 'image/png' : extension == '.webp' ? 'image/webp' : 'image/jpeg';
           canonical['logo_data'] = 'data:$mime;base64,${base64Encode(await file.readAsBytes())}';
-        }
+        } else { throw StateError('সেটিংসে থাকা লোগো ফাইলটি পাওয়া যায়নি; sync বন্ধ রাখা হয়েছে যাতে লোগো হারিয়ে না যায়।'); }
       }
       out[_key('settings','_settings')] = _SyncRecord(collection:'settings',id:'_settings',value:canonical,deleted:false);
     }
@@ -176,7 +186,7 @@ class AppwriteCloudSync {
     if (pathValue is! String || pathValue.isEmpty) return;
     final path = p.isAbsolute(pathValue) ? pathValue : p.join(AppPaths.root.path, pathValue);
     final file = File(path);
-    if (!await file.exists()) return;
+    if (!await file.exists()) throw StateError('একটি ছবির ফাইল পাওয়া যায়নি; sync বন্ধ রাখা হয়েছে যাতে ছবিটি হারিয়ে না যায়।');
     final ext = p.extension(path).toLowerCase();
     final mime = ext == '.png' ? 'image/png' : ext == '.webp' ? 'image/webp' : 'image/jpeg';
     row['photo_data'] = 'data:$mime;base64,${base64Encode(await file.readAsBytes())}';
@@ -205,20 +215,42 @@ class AppwriteCloudSync {
     return out;
   }
 
-  Future<void> _writeCloud(String userId, _SyncRecord record, String? existingId) async {
-    final rowId = existingId ?? await _stableRowId('$userId\u0000${record.collection}\u0000${record.id}');
-    final data = {'owner_id':userId,'collection':record.collection,'record_id':record.id,
-      'payload':jsonEncode(record.value ?? {}),'updated_at':DateTime.now().toUtc().toIso8601String(),'is_deleted':record.deleted};
-    try {
-      await tables.updateRow(databaseId:appwriteDatabaseId,tableId:appwriteTableId,rowId:rowId,data:data);
-    } on AppwriteException catch (e) {
-      if (e.code != 404 && e.code != 409) rethrow;
+  Future<void> _writeCloudBatches(String userId, Map<String, _SyncRecord> cloud,
+      List<MapEntry<String, _SyncRecord>> changes) async {
+    for (var start = 0; start < changes.length; start += 100) {
+      final batch = changes.skip(start).take(100).toList();
+      final fresh = await _readCloud(userId);
+      for (final entry in batch) {
+        final before = cloud[entry.key], now = fresh[entry.key];
+        if (!_same(before == null ? null : {'deleted': before.deleted, 'value': before.deleted ? null : before.value},
+            now == null ? null : {'deleted': now.deleted, 'value': now.deleted ? null : now.value})) {
+          throw StateError('Sync চলার সময় cloud data বদলেছে। local data লেখা হয়নি; আবার sync করে conflict দেখুন।');
+        }
+      }
+      final tx = await tables.createTransaction();
       try {
-        await tables.createRow(databaseId:appwriteDatabaseId,tableId:appwriteTableId,rowId:rowId,data:data,
-          permissions:[Permission.read(Role.user(userId)),Permission.update(Role.user(userId)),Permission.delete(Role.user(userId))]);
-      } on AppwriteException catch (createError) {
-        if (createError.code != 409) rethrow;
-        await tables.updateRow(databaseId:appwriteDatabaseId,tableId:appwriteTableId,rowId:rowId,data:data);
+        for (final entry in batch) {
+          final record = entry.value;
+          final rowId = record.rowId ?? await _stableRowId('$userId\u0000${record.collection}\u0000${record.id}');
+          final data = {'owner_id':userId,'collection':record.collection,'record_id':record.id,
+            'payload':jsonEncode(record.value ?? {}),'updated_at':DateTime.now().toUtc().toIso8601String(),
+            'is_deleted':record.deleted};
+          if (cloud[entry.key] != null) {
+            await tables.updateRow(databaseId:appwriteDatabaseId,tableId:appwriteTableId,rowId:rowId,
+              data:data,transactionId:tx.$id);
+          } else {
+            await tables.createRow(databaseId:appwriteDatabaseId,tableId:appwriteTableId,rowId:rowId,
+              data:data,transactionId:tx.$id,permissions:[Permission.read(Role.user(userId)),
+                Permission.update(Role.user(userId)),Permission.delete(Role.user(userId))]);
+          }
+        }
+        await tables.updateTransaction(transactionId:tx.$id,commit:true);
+      } catch (error) {
+        try { await tables.updateTransaction(transactionId:tx.$id,rollback:true); } catch (_) {}
+        if (error is AppwriteException && (error.code == 409 || error.code == 412)) {
+          throw StateError('Cloud data একই সময়ে বদলে গেছে। local data লেখা হয়নি; আবার sync করে conflict দেখুন।');
+        }
+        rethrow;
       }
     }
   }

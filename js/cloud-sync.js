@@ -34,6 +34,32 @@
     return [...new Uint8Array(bytes)].map(x=>x.toString(16).padStart(2,'0')).join('').slice(0,36);
   };
   const baselineKey=userId=>`madrasah_appwrite_baseline_${userId}`;
+  const sameState=(a,b)=>equal(!a||a.deleted?{deleted:true}:{deleted:false,value:a.value},!b||b.deleted?{deleted:true}:{deleted:false,value:b.value});
+  async function writeCloudBatch(userId,cloud,final){
+    const changes=[];
+    for(const [key,item] of final){
+      const current=cloud.get(key),chosen=item.deleted?{deleted:true}:{deleted:false,value:item.value};
+      if(!current||!sameState(current,chosen))changes.push({key,item,current});
+    }
+    for(let start=0;start<changes.length;start+=100){
+      const batch=changes.slice(start,start+100),fresh=await cloudRecords(userId);
+      for(const {key,current} of batch)if(!sameState(current,fresh.get(key)))throw new Error('Sync চলার সময় cloud data বদলেছে। কোনো local data লেখা হয়নি; আবার sync করে conflict দেখুন।');
+      const tx=await tables.createTransaction({});
+      try{
+        for(const {item,current} of batch){
+          const rowId=current?.rowId||await digest(`${userId}\u0000${item.collection}\u0000${item.id}`);
+          const data={owner_id:userId,collection:item.collection,record_id:item.id,payload:JSON.stringify(item.value??{}),updated_at:new Date().toISOString(),is_deleted:!!item.deleted};
+          if(current)await tables.updateRow({databaseId,tableId,rowId,data,transactionId:tx.$id});
+          else await tables.createRow({databaseId,tableId,rowId,data,transactionId:tx.$id,permissions:[Permission.read(Role.user(userId)),Permission.update(Role.user(userId)),Permission.delete(Role.user(userId))]});
+        }
+        await tables.updateTransaction({transactionId:tx.$id,commit:true});
+      }catch(error){
+        try{await tables.updateTransaction({transactionId:tx.$id,rollback:true})}catch{}
+        if(error?.code===409||error?.code===412)throw new Error('Cloud data একই সময়ে বদলে গেছে। কোনো local data লেখা হয়নি; আবার sync করে conflict দেখুন।');
+        throw error;
+      }
+    }
+  }
   function readBaseline(userId){try{return JSON.parse(localStorage.getItem(baselineKey(userId))||'{}')}catch{return {}}}
   async function localRecords(){
     const out=new Map();
@@ -100,18 +126,14 @@
       else final.set(key,item);
     }
     const baseline={};
+    const latestLocal=await localRecords();
+    if(local.size!==latestLocal.size||[...local].some(([key,row])=>!sameState(row,latestLocal.get(key))))throw new Error('Sync প্রস্তুত করার পর local data বদলেছে। কিছু লেখা হয়নি; আবার sync করুন।');
+    await writeCloudBatch(userId,cloud,final);
     for(const [key,item] of final){
       if(!item?.collection)continue;
       const chosen=item.deleted?{deleted:true}:{deleted:false,value:item.value};
       baseline[key]={collection:item.collection,id:item.id,deleted:!!item.deleted,value:item.value??null};
       const current=cloud.get(key),localCurrent=local.get(key);
-      if(!current||!equal(current.deleted?{deleted:true}:{deleted:false,value:current.value},chosen)){
-        const rowId=current?.rowId||await digest(`${userId}\u0000${item.collection}\u0000${item.id}`);
-        const data={owner_id:userId,collection:item.collection,record_id:item.id,payload:JSON.stringify(item.value??{}),updated_at:new Date().toISOString(),is_deleted:!!item.deleted};
-        const permissions=[Permission.read(Role.user(userId)),Permission.update(Role.user(userId)),Permission.delete(Role.user(userId))];
-        try{await tables.updateRow({databaseId,tableId,rowId,data});}
-        catch(error){if(error.code!==404&&error.code!==409)throw error;try{await tables.createRow({databaseId,tableId,rowId,data,permissions})}catch(createError){if(createError.code!==409)throw createError;await tables.updateRow({databaseId,tableId,rowId,data});}}
-      }
       if(!equal(localCurrent?.deleted?{deleted:true}:{deleted:false,value:localCurrent?.value},chosen)){
         if(item.collection==='settings')Store.setData('settings',toLocal('settings',item.value||{}));
         else{
