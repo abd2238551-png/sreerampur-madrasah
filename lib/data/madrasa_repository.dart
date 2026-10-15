@@ -133,6 +133,67 @@ class MadrasaRepository {
     return _db.query(table);
   }
 
+  Future<void> applyCloudRecords(List<Map<String,Object?>> records) async {
+    const allowed={'academic_years','classes','students','teachers','staff','subjects','attendance',
+      'teacher_attendance','staff_attendance','exams','marks','fees','homework','notices','books',
+      'library_transactions','expenses','income','accounts','settings'};
+    const deleteOrder={'marks':0,'attendance':1,'teacher_attendance':2,'staff_attendance':3,
+      'library_transactions':4,'fees':5,'homework':6,'subjects':7,'exams':8,'students':9,
+      'teachers':10,'staff':11,'books':12,'classes':13,'accounts':14,'expenses':15,'income':16,'academic_years':17,'settings':18};
+    final sorted=[...records]..sort((a,b){
+      final ad=a['deleted']==true?0:1,bd=b['deleted']==true?0:1;
+      if(ad!=bd)return ad.compareTo(bd);
+      final orderA=deleteOrder[a['collection']]??50,orderB=deleteOrder[b['collection']]??50;
+      return ad==0?orderA.compareTo(orderB):orderB.compareTo(orderA);
+    });
+    await _db.transaction((txn)async{
+      for(final record in sorted){
+        final collection=record['collection']?.toString()??'',id=record['id']?.toString()??'';
+        if(!allowed.contains(collection)||id.isEmpty)continue;
+        final deleted=record['deleted']==true;
+        final raw=record['value'];
+        final value=raw is Map?Map<String,Object?>.from(raw.cast<String,Object?>()):<String,Object?>{};
+        if(collection=='settings'){
+          if(deleted)continue;
+          const fields=['school_name','school_address','school_phone','school_email','head_name','academic_year','currency'];
+          final values=<String,String>{};
+          for(final key in fields){final item=value[key];if(item!=null)values[key]=item.toString();}
+          final logo=value['logo_data'];
+          if(logo is String&&logo.startsWith('data:image/')){
+            final path=await _importLegacyPhoto(logo,'logo','madrasa-logo');
+            if(path!=null)values['logo_path']=path;
+          }else if(logo==''){
+            await txn.delete('settings',where:'key = ?',whereArgs:['logo_path']);
+          }
+          for(final entry in values.entries){await txn.insert('settings',{'key':entry.key,'value':entry.value},conflictAlgorithm:ConflictAlgorithm.replace);}
+          continue;
+        }
+        final exists=await txn.query(collection,columns:['id'],where:'id = ?',whereArgs:[id],limit:1);
+        if(deleted){if(exists.isNotEmpty)await txn.delete(collection,where:'id = ?',whereArgs:[id]);continue;}
+        value['id']=id;
+        final photo=value.remove('photo_data');
+        if(photo is String&&photo.startsWith('data:image/')){
+          final path=await _importLegacyPhoto(photo,collection,id);
+          if(path!=null)value['photo_path']=path;
+        }
+        final info=await txn.rawQuery('PRAGMA table_info("$collection")');
+        final columns=info.map((row)=>row['name'].toString()).toSet();
+        final data=<String,Object?>{for(final entry in value.entries)if(columns.contains(entry.key))entry.key:entry.value};
+        if(collection=='classes')data['sort_order']??=0;
+        if(collection=='books'){data['total']??=0;data['available']??=data['total'];}
+        if(collection=='fees')data['discount']??=0;
+        if(collection=='teachers'||collection=='staff')data['salary']??=0;
+        if(collection=='students')data['roll']=(data['roll']??'').toString();
+        try{
+          if(exists.isEmpty){await txn.insert(collection,data,conflictAlgorithm:ConflictAlgorithm.abort);}
+          else{await txn.update(collection,data,where:'id = ?',whereArgs:[id]);}
+        }on DatabaseException catch(e){
+          throw StateError('Appwrite-এর ${collection} / $id record local database-এর unique বা related তথ্যের সঙ্গে মেলেনি। Cloud data রাখা হয়েছে; conflict সমাধান করে আবার Sync করুন. (${e.toString().split('\\n').first})');
+        }
+      }
+    });
+  }
+
   Future<void> importLegacyJson(Map<String,Object?> pack) async {
     final raw=pack['data'];
     if(raw is! Map)throw const FormatException('JSON backup-এর data অংশ পাওয়া যায়নি।');

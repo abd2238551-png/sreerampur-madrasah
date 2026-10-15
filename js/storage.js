@@ -3,7 +3,7 @@
   'use strict';
   const PREFIX='madrasah_';
   const initialClasses=['তাকমীল ফিল হাদিস','ফযিলত ২য় বর্ষ','ফযিলত ১ম বর্ষ','সানোবিয়্যাহ উলয়া ২য় বর্ষ','সানোবিয়্যাহ উলয়া ১ম বর্ষ','সানোবিয়্যাহ আম্মাহ ২য় বর্ষ','সানোবিয়্যাহ আম্মাহ ১ম বর্ষ','মুতাওয়াসসিতাহ ৩য় বর্ষ','মুতাওয়াসসিতাহ ২য় বর্ষ','ইবতিদায়ী ৫ম বর্ষ'];
-  const tables=['classes','students','teachers','subjects','attendance','teacher_attendance','exams','marks','fees','homework','notices','books','library_transactions','expenses'];
+  const tables=['academic_years','classes','students','teachers','staff','subjects','attendance','teacher_attendance','staff_attendance','exams','marks','fees','homework','notices','books','library_transactions','expenses','income','accounts'];
   const empty=Object.fromEntries(tables.map(x=>[x,[]])); empty.settings={}; empty.marks=[];
   function read(key,fallback){try{const raw=localStorage.getItem(PREFIX+key);if(raw===null)return fallback;const value=JSON.parse(raw);return value===null?fallback:value;}catch(e){console.warn('Storage read recovered:',key,e);return fallback;}}
   function write(key,value){try{localStorage.setItem(PREFIX+key,JSON.stringify(value));return true;}catch(e){throw new Error('ব্রাউজারের জায়গা পূর্ণ বা সংরক্ষণ অনুমোদিত নয়। ব্যাকআপ নিয়ে কিছু ছবি সরিয়ে আবার চেষ্টা করুন।');}}
